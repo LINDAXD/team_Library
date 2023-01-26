@@ -5,7 +5,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>라온도서관 > 추천도서 > 추천도서등록</title>
+<title>이젠북컴퍼니 > 추천도서 > 추천도서등록</title>
 <link rel="stylesheet" href="/resources/css/search/popup.css">
 <link rel="stylesheet" href="/resources/css/footer.css">
 <script src="https://code.jquery.com/jquery-3.6.0.js" 
@@ -121,6 +121,8 @@
     </form>
 
     <script>
+    
+    
         $(function () {
             let moveForm = $(".moveForm");
 

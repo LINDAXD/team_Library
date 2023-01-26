@@ -16,13 +16,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.library.model.review.ReviewBoardDTO;
 import com.library.model.search.BookDTO;
 import com.library.model.search.DateDTO;
 import com.library.page.Criteria;
 import com.library.page.ViewPage;
+import com.library.service.review.ReviewBoardService;
 import com.library.service.search.AladinApi;
 import com.library.service.search.BookService;
 import com.library.util.DateUtil;
+import com.sun.tools.javac.code.Preview;
 
 @Controller
 @RequestMapping("/search")
@@ -33,6 +36,11 @@ public class BookController {
 
 	@Autowired
 	private BookService bookService;
+	
+	@Autowired
+	private ReviewBoardService reviewService;
+
+
 
 	// 검색 도서 출력
 	@GetMapping("/book")
@@ -98,6 +106,10 @@ public class BookController {
 					int count = bookService.count(book_isbn);
 					count = 2 - count;
 					model.addAttribute("count", count);
+					
+					// 후기
+					List<ReviewBoardDTO> reviewList = reviewService.getListPage(cri,Long.parseLong(book_isbn));
+					model.addAttribute("reviewList", reviewList);
 
 				} else {
 
@@ -116,6 +128,8 @@ public class BookController {
 			return "redirect:/search/book";
 
 		}
+
+		
 		model.addAttribute("cri", cri);
 		return "/search/sub1/book_detail";
 	}
@@ -149,7 +163,7 @@ public class BookController {
 		if (bookService.count(book.getBook_isbn()) != 2) {
 
 			// 대출
-			bookService.loan(book);
+			bookService.loan(book); //insert into loan_history
 
 			// 대출자 대출 중 도서수 증가
 			bookService.increase_count(book.getUser_id());
@@ -214,7 +228,85 @@ public class BookController {
 
 		}
 	}
+	
+	//============================== 찜하기 추가 ==========================================
+	// 대출자 상태 체크
+	@ResponseBody
+	@PostMapping("/likeChk")
+	public String likeChk(String book_isbn, Principal principal) throws Exception {
 
+		// 로그인 된 user_id 받아오기
+		String id = principal.getName();
+
+		System.out.println(id);
+		System.out.println("likeChk() 진입");
+
+
+		// 대출하려는 회원이 대출 중인 도서인지 체크
+		int loan_check = bookService.like_check(id, book_isbn);
+
+		if (loan_check == 1) {
+
+			return "alreadyLike";
+
+		} else {
+
+			// 아직 좋아요 안한 책이라면 success 리턴
+			return "success";
+
+			} 
+	}
+	
+		
+	// 찜하기
+	@PostMapping("/like")
+	public String like(Model model, Criteria cri, BookDTO book, @RequestParam String detail, Principal principal) {
+
+		// 로그인 된 user_id 받아오기
+		String id = principal.getName();
+
+		// id 세팅
+		book.setUser_id(id);
+
+		System.out.println("\n======================== 찜하기 ========================");
+		System.out.println("아이디 : " + book.getUser_id());
+		System.out.println("찜한 책 제목 : " + book.getBook_title());
+		System.out.println("찜한 책 ISBN : " + book.getBook_isbn());
+		System.out.println("keyword : " + cri.getKeyword());
+		System.out.println("========================================================\n");
+
+		String keyword;
+
+		try {
+			keyword = URLEncoder.encode(cri.getKeyword(), "UTF-8");
+		} catch (UnsupportedEncodingException e) {
+			return "redirect:/search/book";
+		}
+		
+		// 대출
+		bookService.like(book); //insert into loan_historyx
+
+		if (detail.equals("true")) {
+
+			return "redirect:/search/best-book-detail?book_isbn=" + book.getBook_isbn();
+
+		} else {
+			return "redirect:/search/book-detail?amount=" + cri.getAmount() + "&page=" + cri.getPage() + "&type="
+					+ cri.getType() + "&keyword=" + keyword + "&book_isbn=" + book.getBook_isbn();
+		}
+
+	}
+	
+	// 찜한 도서 삭제
+	@PostMapping("/delete-like")
+	public String delete_rec(@RequestParam String book_isbn) {
+		bookService.delete_like_book(book_isbn);
+		return "redirect:/mylib/like-history";
+	}
+	//============================== 찜하기 추가 ==========================================
+
+	
+	
 	// 대출베스트 출력
 	@GetMapping("/best-book")
 	public String best_book(Model model, Criteria cri, DateDTO date) {
@@ -302,5 +394,98 @@ public class BookController {
 		model.addAttribute("cri", cri);
 		return "/search/sub2/best_book_detail";
 	}
+	
+	
+	/*----------------------------------------- 장바구니 ---------------------------------- */
+
+	@ResponseBody
+	@PostMapping("/cartChk")
+	public String cartChk(String book_isbn, Principal principal) throws Exception {
+
+		// 로그인 된 user_id 받아오기
+		String id = principal.getName();
+
+		System.out.println(id);
+		System.out.println("cartChk() 진입");
+
+
+		// 장바구니에 담겨있는지 체크
+		int cart_check = bookService.cart_check(id, book_isbn);
+
+		if (cart_check == 1) {
+
+			return "alreadyCart";
+
+		} else {
+
+			// 아직 좋아요 안한 책이라면 success 리턴
+			return "success";
+
+			} 
+	}
+
+	
+		// 장바구니담기
+		@PostMapping("/cart")
+		public String cart(Model model, Criteria cri, BookDTO book, @RequestParam String detail, Principal principal) {
+		
+			// 로그인 된 user_id 받아오기
+			String id = principal.getName();
+		
+			// id 세팅
+			book.setUser_id(id);
+		
+			System.out.println("\n======================== 장바구니 담기 ========================");
+			System.out.println("아이디 : " + book.getUser_id());
+			System.out.println("책 제목 : " + book.getBook_title());
+			System.out.println("책 ISBN : " + book.getBook_isbn());
+			System.out.println("keyword : " + cri.getKeyword());
+			System.out.println("도서가격 : " + book.getPriceStandard());
+		
+			System.out.println("========================================================\n");
+		
+			String keyword;
+		
+			try {
+				keyword = URLEncoder.encode(cri.getKeyword(), "UTF-8");
+			} catch (UnsupportedEncodingException e) {
+				return "redirect:/search/book";
+			}
+			
+			// 대출
+			bookService.cart(book); //insert into loan_history
+		
+			if (detail.equals("true")) {
+		
+				return "redirect:/search/best-book-detail?book_isbn=" + book.getBook_isbn();
+		
+			} else {
+				return "redirect:/search/book-detail?amount=" + cri.getAmount() + "&page=" + cri.getPage() + "&type="
+						+ cri.getType() + "&keyword=" + keyword + "&book_isbn=" + book.getBook_isbn();
+			}
+		
+		}
+		@PostMapping("/cart-history/update")
+		public String updateCartPOST(
+			 @RequestParam(required=false) String book_title,
+			 @RequestParam(required=false) int bookCount ) {
+			
+			bookService.modifyCount(book_title,bookCount);
+			System.out.println(book_title);
+			System.out.println(bookCount);
+			 
+			return "redirect:/mylib/cart-history";
+		
+		}
+		@PostMapping("/cart-history/delete")
+		public String deleteCartPOST( @RequestParam int cart_id ) {
+			
+			bookService.deleteCart(cart_id); 
+			
+			
+			return "redirect:/mylib/cart-history";
+			
+		}
+
 
 }
